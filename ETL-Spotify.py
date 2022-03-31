@@ -10,8 +10,8 @@ import sys
 
 def spotify_etl_func():
         
-    spotify_client_id = "766b1225eb5c49fda975d4a05f56a3f8" ## ADDD HERE
-    spotify_client_secret = "986c5d4728bc45d4b174b393d9b43deb"     ### ADD HERE 
+    spotify_client_id = "" ## ADDD HERE
+    spotify_client_secret = ""     ### ADD HERE 
     spotify_redirect_url = "http://localhost"  
 
     sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=spotify_client_id,
