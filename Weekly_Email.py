@@ -8,7 +8,8 @@ from tabulate import tabulate
 from datetime import datetime, timedelta
 
 def weekly_email_function():
-        
+    
+    # Connect to my database and then run Queries over
     conn = psycopg2.connect(host = "localhost", user = "devinpowers",port="5433", dbname = "spotify")
     cur = conn.cursor()
     today = datetime.today().date()
@@ -16,6 +17,7 @@ def weekly_email_function():
 
     #Top 5 Songs by Time Listened (MIN)
     top_5_songs_min = [['Song Name', 'Time (Min)']]
+
     cur.callproc('function_last_7_days_top_5_songs_duration')
     for row in cur.fetchall():
         song_name = row[0]
@@ -23,13 +25,13 @@ def weekly_email_function():
         element = [song_name,min_listened]
         top_5_songs_min.append(element)
 
+      
+    # print(top_5_songs_min[1])
+
     # print(top_5_songs_min)
     #Total Time Listened (HOURS)
     cur.callproc('function_last_7_days_hrs_listened_')
     total_time_listened_hrs = float(cur.fetchone()[0])
-
-
-    # print("Total time listened: ", total_time_listened_hrs)
 
 
     #Top 5 Songs and Artists by Times Played
@@ -60,13 +62,38 @@ def weekly_email_function():
         element = [decade,times_played]
         top_decade_played.append(element)
 
+    # Top 10 Albums played this week
+    top_albums_played = [['Album Name', 'Times Played']]
 
+  
+
+    cur.callproc('function_last_7_days_album_played')
+    for row in cur.fetchall():
+        album_name = row[0]
+        times_played = int(row[1])
+        element = [album_name, times_played]
+        top_albums_played.append(element)
+
+  
+    album_url = []
+    track_url= []
+    album_name = []
+    cur.callproc('function_albums')
+    for row in cur.fetchall():
+        
+        album_name.append(row[0])
+        album_url.append(row[1])
+        track_url.append(row[2])
+
+   
+    
     #Sending the Email:
     port = 465
     password = "bhwabaipafdwxihl"
 
     sender_email = "devinjpowers@gmail.com"
-    receiver_email = "powers88@msu.edu"
+    #receiver_email = "powers88@msu.edu"
+    receiver_email = "devinjpowers@gmail.com"
 
     message = MIMEMultipart("alternative")
     message["Subject"] = f"Spotify - Weekly Roundup - {today}"
@@ -74,33 +101,46 @@ def weekly_email_function():
     message["To"] = receiver_email
 
 
-    ## EMAIL SHIT
+
 
     text = f"""\
     Here are your stats for your weekly round up for Spotify. 
     Dates included: {six_days_ago} - {today}:
 
-    Total Time Listened: {total_time_listened_hrs} hours.
-    You listened to these songs and artists a lot here are your top 5!
-    {top_songs_art_played}
-    You spent the most time listening to these songs:
-    {top_5_songs_min}
-    You spend the most time listening to these artists:
-    {top_art_played}
-    Lastly your top decades are as follows:
-    {top_decade_played}
     """
     html = f"""\
     <html>
         <body>
             <h4>
-            Here are your stats for your weekly round up for Spotify.
+            Hello Mr.Powers, here are your stats for your weekly round up for Spotify.
             </h4>
-            <p>
             Dates included: {six_days_ago} - {today}
             <br>
             Total Time Listened: {total_time_listened_hrs} hours.
             <br>
+
+            </h4>
+            Here are your Top Albums of the Week: {album_name[0]}, {album_name[1]}, {album_name[2]}, and {album_name[3]} !
+            </h4>
+
+            <a href = {album_url[0]}>
+             <img src= {track_url[0]}  alt="idk" width="300" height="300" class = "center">
+            </a>
+            
+            <a href = {album_url[1]}>
+            <img src= {track_url[1]}  alt="idk" width="300" height="300" class = "center">
+            </a>
+            
+            <a href = {album_url[2]}>
+            <img src= {track_url[2]}  alt="idk" width="300" height="300" class = "center">
+            </a>
+
+            <a href = {album_url[3]}>
+            <img src= {track_url[3]}  alt="idk" width="300" height="300" class = "center">
+            </a>
+
+            <p>
+
             <h4>
             You listened to these songs and artists a lot here are your top 5!
             </h4>
@@ -110,25 +150,29 @@ def weekly_email_function():
             </h4>
             {tabulate(top_5_songs_min, tablefmt='html')}
             <h4>
-            You spend a lot of time listening to these artists!
+            Here are your Top 10 played artists!
             </h4>
             {tabulate(top_art_played, tablefmt='html')}
+
+            /INsert Artists Album!
+            
             <h4>
+            Here are your Top 10 most played albums!
+            </h4>
+            {tabulate(top_albums_played, tablefmt='html')}
+            </h4>
             Lastly your top decades are as follows:
             </h4>
             {tabulate(top_decade_played, tablefmt='html')}
+             </h4>
             </p>
+            
+            
         </body>
     </html>"""
 
     part1 = MIMEText(text,"plain")
     part2 = MIMEText(html,"html")
-
-    #print("PART1:", part1)
-
-    #print("Part2:", part2)
-
-    # ACtrually send things here:
 
 
     message.attach(part1)
