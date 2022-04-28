@@ -1,106 +1,153 @@
+#import spotipy, Spotify API Library
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import pandas as pd
-import sys
+#import postsql things
 import psycopg2
 from sqlalchemy import create_engine
 import sys
 
 
-def spotify_etl_func():
+def spotify_func1(sp):
         
-    spotify_client_id = "" ## ADDD HERE
-    spotify_client_secret = ""     ### ADD HERE 
-    spotify_redirect_url = "http://localhost"  
+        sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=spotify_client_id,
+                                                        client_secret=spotify_client_secret,
+                                                        redirect_uri=spotify_redirect_url,
+                                                        scope="user-read-recently-played"))
 
-    sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=spotify_client_id,
-                                                    client_secret=spotify_client_secret,
-                                                    redirect_uri=spotify_redirect_url,
-                                                    scope="user-read-recently-played"))
+        # Will return 50 most recent played songs
+        recently_played = sp.current_user_recently_played(limit=50)
+        
+        
+        return 'ran function 1!'
 
-    recently_played = sp.current_user_recently_played(limit=50) # 50 requests is the limit I believe!  
+        # Creating the Album Data Structure:
+        album_dict = {}
+        album_id = []
+        album_name = []
+        album_release_date = []
+        album_total_tracks = []
+        album_url = []
+        album_image = []
 
-    #print(recently_played)
+        for row in recently_played['items']:
+            album_id.append(row['track']['album']['id'])
 
-    if len(recently_played) ==0:
-        sys.exit("No results recieved from Spotify")
+            album_name.append(row['track']['album']['name'])
+            album_release_date.append(row['track']['album']['release_date'])
+            album_total_tracks.append(row['track']['album']['total_tracks'])
+            album_url.append(row['track']['album']['external_urls']['spotify'])
+            album_image.append(row['track']['album']['images'][1]['url'])
 
-    #Creating the Album Data Structure:
-    album_dict = {}
-    album_id = []
-    album_name = []
-    album_release_date = []
-    album_total_tracks = []
-    album_url = []
-    album_image = []
+        album_dict = {'album_id':album_id,'name':album_name,'release_date':album_release_date, 'total_tracks':album_total_tracks,'url':album_url, 'image_url': album_image }
 
-   
 
-    for row in recently_played['items']:
-        album_id.append(row['track']['album']['id'])
+        # Creating the Artist Data Structure !
 
-        album_name.append(row['track']['album']['name'])
-        album_release_date.append(row['track']['album']['release_date'])
-        album_total_tracks.append(row['track']['album']['total_tracks'])
-        album_url.append(row['track']['album']['external_urls']['spotify'])
-        album_image.append(row['track']['album']['images'][1]['url'])
+        artist_dict = {}
+        id_list = []
+        name_list = []
+        url_list = []
 
+        for row in recently_played['items']:
+
+            id_list.append(row['track']['artists'][0]['id'])
+            name_list.append(row['track']['artists'][0]['name'])
+            url_list.append(row['track']['artists'][0]['external_urls']['spotify'])
+
+        artist_dict = {'artist_id':id_list,'artist_name':name_list,'url':url_list} # Combine
+
+        # For Song Track Data Structure 
+
+        song_dict = {}
+        song_id = []
+        song_name = []
+        song_duration = []
+        song_url = []
+        song_time_played = []
+        album_id = []
+        song_element = []
+        artist_id = []
+
+        for row in recently_played['items']:
+
+            song_id.append(row['track']['id'])
+            song_name.append(row['track']['name'])
+            song_duration.append(row['track']['duration_ms'])
+            song_url.append(row['track']['external_urls']['spotify'])
+
+            song_time_played.append(row['played_at'])
+            album_id.append(row['track']['album']['id'])
+            artist_id.append(row['track']['album']['artists'][0]['id'])
+
+        song_dict = {'song_id':song_id,'song_name':song_name,'duration_ms':song_duration,'url':song_url,
+                            'date_time_played':song_time_played,'album_id':album_id,
+                            'artist_id':artist_id
+                            }
+        
+        Album_df = pd.DataFrame.from_dict(album_dict)
+        Album_df = Album_df.drop_duplicates(subset=['album_id'])
+
+        Artist_df = pd.DataFrame.from_dict(Artist_Dict)
+        Artist_df = Artist_Df.drop_duplicates(subset=['artist_id'])
+
+        Song_df = pd.DataFrame.from_dict(song_dict)
+        
+        Song_df['date_time_played'] = pd.to_datetime(Song_df['date_time_played'])
+        Song_df['date_time_played'] = Song_df['date_time_played'].dt.tz_convert('US/Eastern')
+        Song_df['date_time_played'] = Song_df['date_time_played'].astype(str).str[:-7]
+        Song_df['date_time_played'] = pd.to_datetime(Song_df['date_time_played'])
+        Song_df['UNIX_Time_Stamp'] = (Song_df['date_time_played'] - pd.Timestamp("1970-01-01"))//pd.Timedelta('1s')
+        Song_df['unique_id'] = Song_df['song_id'] + "-" + Song_df['UNIX_Time_Stamp'].astype(str)
+        Song_df = Song_df[['unique_id','song_id','song_name','duration_ms','url','date_time_played','album_id','artist_id']]
+        
+        # Postgres
+        conn = psycopg2.connect(host = "",user = "", port="", dbname = "")
+        cur = conn.cursor()
+
+        engine = create_engine('postgresql+psycopg2://@/') 
+        conn_eng = engine.raw_connection()
+        cur_eng = conn_eng.cursor()
+
+        
+        # Importing the Song_df into the SQL table
+
+        cur_eng.execute(
+        """
+        CREATE TEMP TABLE temp_track AS SELECT * FROM spotify_track LIMIT 0
+        """)
+        Song_df.to_sql("temp_track", con = engine, if_exists='append', index = False)
+
+        # Now we can move the data from the temp table into our actual table
+
+        cur.execute(
+        """
+        INSERT INTO spotify_track
+            SELECT *
+            FROM   temp_track
+            LEFT   JOIN spotify_track USING (unique_id)
+            WHERE  spotify_track.unique_id IS NULL;
+
+            DROP TABLE temp_track
+        """)
+        conn.commit()
+
+
+
+        
        
+if __name__ = "__main__":
         
-    album_dict = {'album_id':album_id,'name':album_name,'release_date':album_release_date, 'total_tracks':album_total_tracks,'url':album_url, 'image_url': album_image }
+        spotify_client_id = " " ## ADDD HERE
+        spotify_client_secret = ""     ### ADD HERE 
+        spotify_redirect_url = "http://localhost"  # might have to enter in this to redirect!
+        
+        # function 1
+        func1 = spotify_func1(sp)
+        print(func1)
 
-    #Creating the Artist Data Structure:
-    #As we can see here this is another way to store data with using a dictionary of lists. Personally, for this project
-    #I think using the strategy with the albums dicts(lists) is better. It allows for more functionality if we have to sort for example.
-    # Additionally we do not need to make the temporary lists. There may be a more pythonic method to creating this but it is not my preferred method
-    artist_dict = {}
-    id_list = []
-    name_list = []
-    url_list = []
-    for item in recently_played['items']:
-        for key,value in item.items():
-            if key == "track":
-                for data_point in value['artists']:
-                    id_list.append(data_point['id'])
-                    name_list.append(data_point['name'])
-                    url_list.append(data_point['external_urls']['spotify'])
-    artist_dict = {'artist_id':id_list,'name':name_list,'url':url_list}
-
-
-
-
-    song_dict = {}
-    song_id = []
-    song_name = []
-    song_duration = []
-    song_url = []
-    song_popularity = []
-    song_time_played = []
-    album_id = []
-    song_element = []
-    artist_id = []
-
-    for row in recently_played['items']:
-
-        song_id.append(row['track']['id'])
-        song_name.append(row['track']['name'])
-        song_duration.append(row['track']['duration_ms'])
-        song_url.append(row['track']['external_urls']['spotify'])
-        song_popularity.append(row['track']['popularity'])
-        song_time_played.append(row['played_at'])
-        album_id.append(row['track']['album']['id'])
-        artist_id.append(row['track']['album']['artists'][0]['id'])
-
-    song_dict = {'song_id':song_id,'song_name':song_name,'duration_ms':song_duration,'url':song_url,
-                        'popularity':song_popularity,'date_time_played':song_time_played,'album_id':album_id,
-                        'artist_id':artist_id
-                        }
-    
-
-    #Now that we have these two lists and one dictionary ready lets convert them to DataFrames
-    #We will need to do some cleaning and add our Unique ID for the Track
-    #Then load into PostgresSQL from the dataframe
-
-    #Album = We can also just remove duplicates here. We dont want to load two of the same albums just to have SQL drop it later
-    album_df = pd.DataFrame.from_dict(album_dict)
-    album_df = album_df.drop_duplicates(subset=['album_id'])
+        # function  2
+        
+        # function 3 Email
+        
+        
