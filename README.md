@@ -8,7 +8,7 @@ With Machine Learning to recommend songs to listen to!
 # Step 1: Create Database in PostgreSQL
 
 ```sql
--- Creating the Track Table (Fact Table)
+--  (Fact Table)
 CREATE TABLE IF NOT EXISTS spotify_track(
     unique_id TEXT PRIMARY KEY NOT NULL,
     song_id TEXT NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS spotify_album(
     album_name TEXT,
     release_date TEXT,
     url TEXT,
-    image_url TEXT
+    image_url TEXT -- link to Album Cover image
     );
 
 -- Creating the Artist Table (Dimension Table)
