@@ -17,9 +17,6 @@ def spotify_func1(sp):
 
         # Will return 50 most recent played songs
         recently_played = sp.current_user_recently_played(limit=50)
-        
-        
-        return 'ran function 1!'
 
         # Creating the Album Data Structure:
         album_dict = {}
@@ -131,8 +128,124 @@ def spotify_func1(sp):
             DROP TABLE temp_track
         """)
         conn.commit()
+        
+        cur_eng.execute(
+        """
+        CREATE TEMP TABLE  temp_album AS SELECT * FROM spotify_album LIMIT 0
+        """)
+        album_df.to_sql("temp_album", con = engine, if_exists='append', index = False)
+        conn_eng.commit()
+        #Moving from Temp Table to Production Table
+        cur.execute(
+        """
+        INSERT INTO spotify_album
+        SELECT *
+        FROM   temp_album
+        LEFT   JOIN spotify_album USING (album_id)
+        WHERE  spotify_album.album_id IS NULL;
+
+        DROP TABLE temp_album""")
+        conn.commit()
 
 
+        # Artists Table
+        cur_eng.execute(
+        """
+        CREATE TEMP TABLE temp_artist AS SELECT * FROM spotify_artists LIMIT 0
+        """)
+        artist_df.to_sql("temp_artist", con = engine, if_exists='append', index = False)
+        conn_eng.commit()
+        #Moving data from temp table to production table
+        cur.execute(
+        """
+        INSERT INTO spotify_artists
+        SELECT *
+        FROM   temp_artist
+        LEFT   JOIN spotify_artists USING (artist_id)
+        WHERE  spotify_artists.artist_id IS NULL;
+
+        DROP TABLE temp_artist""")
+        conn.commit()
+        
+        return "ran function 1!"
+
+def spotify_func2(sp):
+        '''Audio'''
+        recently_played = sp.current_user_recently_played(limit=50) 
+
+        # Return dataframe of song_id
+        song_id = []
+        song_name = []
+
+        for row in recently_played['items']:
+
+            song_id.append(row['track']['id'])
+            song_name.append(row['track']['name'])
+
+        track_analysis = {}
+        song_id_list = []
+        acousticness = []
+        danceability = []
+        energy = []
+        liveness = []
+        loudness = []
+        tempo = []
+        valence = []
+        instrumentalness = []
+        speechiness = []
+
+        for song in song_id:
+
+            analysis_ = sp.audio_features(song)
+            song_id_list.append(song)
+            # Iterate through analysis and add columns to list!!!
+            acousticness.append(analysis_[0]['acousticness'])
+            danceability.append(analysis_[0]['danceability'])
+            energy.append(analysis_[0]['energy'])
+            liveness.append(analysis_[0]['liveness'])
+            loudness.append(analysis_[0]['loudness'])
+            tempo.append(analysis_[0]['tempo'])
+            valence.append(analysis_[0]['valence'])
+            speechiness.append(analysis_[0]['speechiness'])
+            instrumentalness.append(analysis_[0]['instrumentalness'])
+
+
+        track_analysis = {'song_id':song_id_list,'acousticness':acousticness,'danceability':danceability, 'energy': energy,'liveness': liveness, 'loudness' : loudness, 'tempo': tempo,'valence': valence, 'instrumentalness': instrumentalness, 'speechiness': speechiness }
+
+        # Convert from Dictionary to Dataframe using Pandas, keep = False which is to drop the indexes
+
+        track_analysis_df = pd.DataFrame.from_dict(track_analysis)
+        track_analysis_df = track_analysis_df.drop_duplicates(subset=['song_id'], keep = False)
+        
+        
+        '''Connect to our Postgres Database'''
+        conn = psycopg2.connect(host = "localhost", user = "devinpowers",port="5433", dbname = "spotify")
+        cur = conn.cursor()
+        engine = create_engine('postgresql+psycopg2://devinpowers@localhost:5433/spotify') # this is 
+        conn_eng = engine.raw_connection()
+        cur_eng = conn_eng.cursor()
+
+
+        cur_eng.execute(
+        """
+        CREATE TEMP TABLE IF NOT EXISTS tmp_spotify_audio_new AS SELECT * FROM spotify_audio_analysis LIMIT 0
+        """)
+
+        data_frame.to_sql("tmp_spotify_audio_new", con = engine, if_exists='append', index = False)
+
+        #Moving data from temp table to production table
+        cur.execute(
+        """
+            INSERT INTO spotify_audio_analysis
+            SELECT * FROM tmp_spotify_audio_new
+            WHERE tmp_spotify_audio_new.song_id NOT IN (SELECT song_id FROM spotify_audio_analysis );
+
+            DROP TABLE tmp_spotify_audio_new
+            """)
+        conn.commit()
+
+        return "Finished Function 2!"
+        
 
         
        
@@ -147,7 +260,10 @@ if __name__ = "__main__":
         print(func1)
 
         # function  2
+        func1 = spotify_func2(sp)
+        print(func2)
         
         # function 3 Email
+        Import 
         
         
