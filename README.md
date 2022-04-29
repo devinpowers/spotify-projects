@@ -7,7 +7,9 @@ With Machine Learning to recommend songs to listen to!
 
 # Step 1: Create Database in PostgreSQL
 
-```sqlCREATE TABLE  spotify_track(
+```sql
+
+CREATE TABLE  spotify_track(
     unique_id TEXT PRIMARY KEY NOT NULL,
     song_id TEXT NOT NULL,
     song_name TEXT,
@@ -44,3 +46,5 @@ CREATE TABLE  spotify_audio_analysis(
     speechiness decimal(5,5),
     instrumentalness decimal(5,5) );
 ```
+
+
