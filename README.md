@@ -14,6 +14,9 @@ CREATE DATABASE Spotify;
 
 
 ```sql
+
+USE  DATABASE Spotify; -- Connect to database
+
 CREATE TABLE  spotify_track(
     unique_id TEXT PRIMARY KEY NOT NULL,
     song_id TEXT NOT NULL,
