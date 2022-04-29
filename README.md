@@ -1,14 +1,19 @@
 # spotify-projects
-projects using spotify API
+
+Projects using spotify API
 
 
-With Machine Learning to recommend songs to listen to!
 
 
 # Step 1: Create Database in PostgreSQL and Add these Tables!
 
 ```sql
+CREATE DATABASE Spotify;
+```
 
+
+
+```sql
 CREATE TABLE  spotify_track(
     unique_id TEXT PRIMARY KEY NOT NULL,
     song_id TEXT NOT NULL,
