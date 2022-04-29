@@ -1,8 +1,6 @@
 # spotify-projects
 
-Projects using spotify API
-
-
+Note this project is a work in progress. Here is my [blog post](https://devintheengineer.com/Spotify-ETL-Project/) about it.
 
 
 # Step 1: Create Database in PostgreSQL and Add these Tables!
